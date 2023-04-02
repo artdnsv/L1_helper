@@ -1,4 +1,4 @@
-function formatDate() {
+function formatDate(userId) {
   const now = new Date();
   const utcOffset = 3; // UTC+3
   const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
@@ -6,7 +6,7 @@ function formatDate() {
   const day = date.getDate().toString().padStart(2, "0");
   const month = (date.getMonth() + 1).toString().padStart(2, "0");
   const year = date.getFullYear().toString();
-  return `${day}/${month}/${year} - ClientID - `;
+  return `${day}/${month}/${year} - ${userId} - `;
 }
 
 const paymentSystems = [
@@ -66,54 +66,59 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === "blank") {
-    const dateText = formatDate();
-    chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: (text) => {
-        document.execCommand("insertText", false, text);
-      },
-      args: [dateText],
-    });
-  } else if (info.menuItemId === "verificationReject") {
-    const dateText = formatDate();
-    chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: (text) => {
-        document.execCommand("insertText", false, text);
-      },
-      args: [`${dateText}verification rejected`],
-    });
-  } else if (info.menuItemId.startsWith("missingDeposit-")) {
-    const paymentSystem = info.menuItemId.replace("missingDeposit-", "");
-    const systemData = {
-      interkassa: 'IK',
-      paykassma: 'PK',
-      deluxepay: 'DLX',
-    };
-    const dateText = formatDate();
-    chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: (text) => {
-        document.execCommand("insertText", false, text);
-      },
-      args: [`${dateText} missing deposit of AMOUNT - ${systemData[paymentSystem]}`],
-    });
-  } else if (info.menuItemId.startsWith("longWithdrawalProcessing-")) {
-    const paymentSystem = info.menuItemId.replace("longWithdrawalProcessing-", "");
-    const systemData = {
-      interkassa: 'IK',
-      paykassma: 'PK',
-      deluxepay: 'DLX',
-    };
-    const dateText = formatDate();
-    chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: (text) => {
-        document.execCommand("insertText", false, text);
-      },
-      args: [`${dateText} long withdrawal processing of AMOUNT - ${systemData[paymentSystem]}`],
-    });
-  }
-});
+  chrome.tabs.sendMessage(tab.id, { action: 'getUserId' }, (response) => {
+    if (chrome.runtime.lastError || !response) {
+      console.error(JSON.stringify(chrome.runtime.lastError) || 'No response from content script');
+      return;
+    }
 
+    const userId = response.userId;
+    const dateText = formatDate(userId);
+
+    if (info.menuItemId === "blank") {
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (text) => {
+          document.execCommand("insertText", false, text);
+        },
+        args: [dateText],
+      });
+    } else if (info.menuItemId === "verificationReject") {
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (text) => {
+          document.execCommand("insertText", false, text);
+        },
+        args: [`${dateText}verification rejected`],
+      });
+    } else if (info.menuItemId.startsWith("missingDeposit-")) {
+      const paymentSystem = info.menuItemId.replace("missingDeposit-", "");
+      const systemData = {
+        interkassa: 'IK',
+        paykassma: 'PK',
+        deluxepay: 'DLX',
+      };
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (text) => {
+          document.execCommand("insertText", false, text);
+        },
+        args: [`${dateText} missing deposit of AMOUNT - ${systemData[paymentSystem]}`],
+      });
+    } else if (info.menuItemId.startsWith("longWithdrawalProcessing-")) {
+      const paymentSystem = info.menuItemId.replace("longWithdrawalProcessing-", "");
+      const systemData = {
+        interkassa: 'IK',
+        paykassma: 'PK',
+        deluxepay: 'DLX',
+      };
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (text) => {
+          document.execCommand("insertText", false, text);
+        },
+        args: [`${dateText} long withdrawal processing of AMOUNT - ${systemData[paymentSystem]}`],
+      });
+    }
+  });
+});
